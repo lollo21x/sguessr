@@ -1065,3 +1065,108 @@ h1 {
     animation: none !important;
   }
 }
+
+/* ---- salvataggio & import/export modal ---- */
+.topbar-home,
+.topbar-results {
+  margin-bottom: 0.2rem;
+  width: 100%;
+}
+
+.round-pill-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font: inherit;
+  border-radius: var(--radius-pill);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.round-pill-btn:active {
+  transform: translateY(1px);
+}
+
+.modal-card-data {
+  width: min(100%, 380px);
+}
+
+.data-info-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1.5px solid rgba(124, 108, 255, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.data-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.data-info-row strong {
+  color: #fff;
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.modal-data-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.btn-data-act {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  padding: 0.75rem 1rem;
+}
+
+.btn-data-act .ico {
+  width: 18px;
+  height: 18px;
+}
+
+.data-status-msg {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.data-status-msg.info {
+  background: rgba(124, 108, 255, 0.15);
+  color: #c0b8ff;
+}
+
+.data-status-msg.success {
+  background: rgba(46, 213, 115, 0.15);
+  color: #7bed9f;
+  border: 1px solid rgba(46, 213, 115, 0.3);
+}
+
+.data-status-msg.error {
+  background: rgba(255, 71, 87, 0.15);
+  color: #ff6b81;
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
