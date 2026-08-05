@@ -5,19 +5,12 @@
   const SONGS = window.SONGS || []
   const DURATION_STEPS = [2, 5, 10, 15, 20, 30]
   const POINTS_BY_STEP = [6, 5, 4, 3, 2, 1]
+  /** Chiavi localStorage (sync, sopravvivono a refresh e chiusura PWA) */
   const INTRO_KEY = 'songguesser_intro_seen'
-  /**
-   * Progresso catalogo (PWA-safe):
-   * - localStorage (sync)
-   * - IndexedDB (più stabile su iOS/Android PWA)
-   * - memoria in-process
-   * Salva sia id che "chiavi stabili" titolo|artista così sopravvive a rebuild del catalogo.
-   */
-  const PLAYED_KEY = 'songguesser_played_v2'
+  const PLAYED_KEY = 'songguesser_played_v3'
   const PLAYED_KEY_LEGACY = 'songguesser_played_ids'
-  const IDB_NAME = 'songguesser_db'
-  const IDB_STORE = 'kv'
-  const IDB_PLAYED = 'played'
+  const PLAYED_KEY_LEGACY2 = 'songguesser_played_v2'
+  const SESSION_KEY = 'songguesser_session_v1'
   /** Limite solo per ricerche generiche sul titolo; per artista si mostrano tutti i match */
   const SUGGEST_LIMIT_DEFAULT = 12
 
@@ -168,12 +161,47 @@
     } catch (_) {}
   }
 
-  // ---------- progresso persistente (localStorage + IndexedDB) ----------
+  // ---------- storage helpers (sync, come l'intro che già funziona) ----------
+  function lsGetRaw(key) {
+    try {
+      return localStorage.getItem(key)
+    } catch (_) {
+      return null
+    }
+  }
+
+  function lsSetRaw(key, value) {
+    try {
+      localStorage.setItem(key, value)
+      return true
+    } catch (_) {
+      return false
+    }
+  }
+
+  function lsGetJSON(key, fallback) {
+    const raw = lsGetRaw(key)
+    if (raw == null || raw === '') return fallback
+    try {
+      return JSON.parse(raw)
+    } catch (_) {
+      return fallback
+    }
+  }
+
+  function lsSetJSON(key, value) {
+    try {
+      return lsSetRaw(key, JSON.stringify(value))
+    } catch (_) {
+      return false
+    }
+  }
+
   function uniqueStrings(arr) {
     const seen = new Set()
     const out = []
     for (let i = 0; i < (arr || []).length; i++) {
-      const v = String(arr[i] || '')
+      const v = String(arr[i] == null ? '' : arr[i])
       if (!v || seen.has(v)) continue
       seen.add(v)
       out.push(v)
@@ -181,7 +209,7 @@
     return out
   }
 
-  /** Chiave stabile brano (sopravvive a cambi id / titoli con "Radio Edit") */
+  /** Chiave stabile brano (titolo base + artista) */
   function songStableKey(song) {
     if (!song) return ''
     let title = String(song.title || '')
@@ -198,238 +226,78 @@
       }
     }
     const t = normalize(title)
-    let artist = String(song.artist || '')
+    const artist = String(song.artist || '')
       .split(/[;&]/)[0]
       .split(/\s*(?:,| feat\.? | ft\.? | featuring | with | x | vs\.? )\s*/i)[0]
     const a = normalize(artist).split(/\s+/).slice(0, 2).join(' ')
+    if (!t) return ''
     return t + '|' + a
   }
 
-  function emptyPlayed() {
-    return { v: 2, ids: [], keys: [], count: 0, updatedAt: 0 }
-  }
+  // ---------- brani già fatti (catalogo) ----------
+  /** @type {{ ids: string[], keys: string[] }} */
+  let playedMem = { ids: [], keys: [] }
 
-  function normalizePlayed(raw) {
-    if (!raw) return emptyPlayed()
-    if (Array.isArray(raw)) {
-      const ids = uniqueStrings(raw.map(String))
-      return { v: 2, ids, keys: [], count: ids.length, updatedAt: Date.now() }
-    }
-    if (typeof raw === 'object') {
-      const ids = uniqueStrings([].concat(raw.ids || []).map(String))
-      const keys = uniqueStrings([].concat(raw.keys || []).map(String))
-      return {
-        v: 2,
-        ids,
-        keys,
-        count: Math.max(ids.length, keys.length),
-        updatedAt: Number(raw.updatedAt) || Date.now(),
+  function readPlayedFromDisk() {
+    const keysToTry = [PLAYED_KEY, PLAYED_KEY_LEGACY2, PLAYED_KEY_LEGACY]
+    for (let i = 0; i < keysToTry.length; i++) {
+      const raw = lsGetJSON(keysToTry[i], null)
+      if (raw == null) continue
+      if (Array.isArray(raw)) {
+        return { ids: uniqueStrings(raw), keys: [] }
+      }
+      if (typeof raw === 'object') {
+        return {
+          ids: uniqueStrings([].concat(raw.ids || [])),
+          keys: uniqueStrings([].concat(raw.keys || [])),
+        }
       }
     }
-    return emptyPlayed()
+    return { ids: [], keys: [] }
   }
 
-  function mergePlayed(a, b) {
-    const ids = uniqueStrings([].concat((a && a.ids) || [], (b && b.ids) || []))
-    const keys = uniqueStrings([].concat((a && a.keys) || [], (b && b.keys) || []))
-    return {
-      v: 2,
-      ids,
-      keys,
-      count: Math.max(ids.length, keys.length),
-      updatedAt: Math.max(
-        Number((a && a.updatedAt) || 0),
-        Number((b && b.updatedAt) || 0),
-        Date.now(),
-      ),
-    }
-  }
-
-  /** Stato in memoria (fonte di verità durante la sessione) */
-  let playedState = emptyPlayed()
-  let playedReady = false
-
-  function readLocalStoragePlayed() {
-    try {
-      const raw = localStorage.getItem(PLAYED_KEY)
-      if (raw) return normalizePlayed(JSON.parse(raw))
-    } catch (_) {}
-    // migrazione da chiave legacy
-    try {
-      const legacy = localStorage.getItem(PLAYED_KEY_LEGACY)
-      if (legacy) return normalizePlayed(JSON.parse(legacy))
-    } catch (_) {}
-    return emptyPlayed()
-  }
-
-  function writeLocalStoragePlayed(store) {
+  function writePlayedToDisk(data) {
     const payload = {
-      v: 2,
-      ids: uniqueStrings(store.ids),
-      keys: uniqueStrings(store.keys),
+      v: 3,
+      ids: uniqueStrings(data.ids),
+      keys: uniqueStrings(data.keys),
       count: 0,
       updatedAt: Date.now(),
     }
-    payload.count = Math.max(payload.ids.length, payload.keys.length)
-    const json = JSON.stringify(payload)
-    try {
-      localStorage.setItem(PLAYED_KEY, json)
-      // tieni anche la legacy in sync per vecchie build
-      localStorage.setItem(PLAYED_KEY_LEGACY, JSON.stringify(payload.ids))
-    } catch (_) {
-      try {
-        const trimmed = {
-          v: 2,
-          ids: payload.ids.slice(-800),
-          keys: payload.keys.slice(-800),
-          count: 0,
-          updatedAt: Date.now(),
-        }
-        trimmed.count = Math.max(trimmed.ids.length, trimmed.keys.length)
-        localStorage.setItem(PLAYED_KEY, JSON.stringify(trimmed))
-        localStorage.setItem(PLAYED_KEY_LEGACY, JSON.stringify(trimmed.ids))
-      } catch (__) {}
-    }
+    payload.count = payload.ids.length
+    // Scrivi su più chiavi: se una fallisce le altre restano
+    lsSetJSON(PLAYED_KEY, payload)
+    lsSetJSON(PLAYED_KEY_LEGACY, payload.ids)
+    lsSetJSON(PLAYED_KEY_LEGACY2, payload)
     return payload
   }
 
-  function openPlayedIdb() {
-    return new Promise((resolve, reject) => {
-      if (typeof indexedDB === 'undefined') {
-        reject(new Error('no idb'))
-        return
-      }
-      const req = indexedDB.open(IDB_NAME, 1)
-      req.onupgradeneeded = () => {
-        const db = req.result
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE)
-        }
-      }
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error || new Error('idb open failed'))
-    })
-  }
-
-  function idbGetPlayed(db) {
-    return new Promise((resolve, reject) => {
-      try {
-        const tx = db.transaction(IDB_STORE, 'readonly')
-        const store = tx.objectStore(IDB_STORE)
-        const req = store.get(IDB_PLAYED)
-        req.onsuccess = () => resolve(normalizePlayed(req.result))
-        req.onerror = () => reject(req.error)
-      } catch (e) {
-        reject(e)
-      }
-    })
-  }
-
-  function idbSetPlayed(db, data) {
-    return new Promise((resolve, reject) => {
-      try {
-        const tx = db.transaction(IDB_STORE, 'readwrite')
-        const store = tx.objectStore(IDB_STORE)
-        const req = store.put(data, IDB_PLAYED)
-        req.onsuccess = () => resolve()
-        req.onerror = () => reject(req.error)
-        tx.oncomplete = () => resolve()
-      } catch (e) {
-        reject(e)
-      }
-    })
-  }
-
-  function idbClearPlayed(db) {
-    return new Promise((resolve, reject) => {
-      try {
-        const tx = db.transaction(IDB_STORE, 'readwrite')
-        const store = tx.objectStore(IDB_STORE)
-        const req = store.delete(IDB_PLAYED)
-        req.onsuccess = () => resolve()
-        req.onerror = () => reject(req.error)
-      } catch (e) {
-        reject(e)
-      }
-    })
-  }
-
-  function persistPlayedNow() {
-    playedState = writeLocalStoragePlayed(playedState)
-    // IndexedDB in background (non blocca UI)
-    openPlayedIdb()
-      .then((db) =>
-        idbSetPlayed(db, playedState).finally(() => {
-          try {
-            db.close()
-          } catch (_) {}
-        }),
-      )
-      .catch(() => {})
-  }
-
-  /**
-   * Carica progresso da localStorage + IndexedDB (merge).
-   * Da chiamare PRIMA di game.start() all'avvio PWA.
-   */
-  async function initPlayedStore() {
-    let merged = readLocalStoragePlayed()
-
-    // Arricchisci keys dagli id già noti nel catalogo
-    const byId = new Map(SONGS.map((s) => [String(s.id), s]))
-    for (let i = 0; i < merged.ids.length; i++) {
-      const song = byId.get(String(merged.ids[i]))
-      if (song) {
-        const k = songStableKey(song)
-        if (k && merged.keys.indexOf(k) === -1) merged.keys.push(k)
-      }
+  function initPlayedStore() {
+    playedMem = readPlayedFromDisk()
+    // Arricchisci keys dagli id presenti nel catalogo
+    const byId = new Map()
+    for (let i = 0; i < SONGS.length; i++) {
+      byId.set(String(SONGS[i].id), SONGS[i])
     }
-
-    try {
-      const db = await openPlayedIdb()
-      try {
-        const fromIdb = await idbGetPlayed(db)
-        merged = mergePlayed(merged, fromIdb)
-        // riscrivi entrambe le fonti allineate
-        merged = writeLocalStoragePlayed(merged)
-        await idbSetPlayed(db, merged)
-      } finally {
-        try {
-          db.close()
-        } catch (_) {}
-      }
-    } catch (_) {
-      merged = writeLocalStoragePlayed(merged)
+    for (let i = 0; i < playedMem.ids.length; i++) {
+      const song = byId.get(String(playedMem.ids[i]))
+      if (!song) continue
+      const k = songStableKey(song)
+      if (k && playedMem.keys.indexOf(k) === -1) playedMem.keys.push(k)
     }
-
-    playedState = merged
-    playedReady = true
-
-    // Chiedi storage persistente (riduce evizioni iOS/Android)
+    writePlayedToDisk(playedMem)
     try {
       if (navigator.storage && navigator.storage.persist) {
-        navigator.storage.persist().catch(() => {})
+        navigator.storage.persist().catch(function () {})
       }
     } catch (_) {}
-
-    return playedState
-  }
-
-  function getPlayedIds() {
-    if (!playedReady) {
-      playedState = mergePlayed(playedState, readLocalStoragePlayed())
-    }
-    return playedState.ids.slice()
+    return playedMem
   }
 
   function getPlayedCount() {
-    if (!playedReady) {
-      playedState = mergePlayed(playedState, readLocalStoragePlayed())
-    }
-    // Conta quanti brani del catalogo attuale risultano già fatti
+    const idSet = new Set(playedMem.ids.map(String))
+    const keySet = new Set(playedMem.keys)
     let n = 0
-    const idSet = new Set(playedState.ids.map(String))
-    const keySet = new Set(playedState.keys)
     for (let i = 0; i < SONGS.length; i++) {
       const s = SONGS[i]
       if (idSet.has(String(s.id)) || keySet.has(songStableKey(s))) n++
@@ -437,9 +305,16 @@
     return n
   }
 
-  /** @param {string|object} songOrId */
+  function isSongPlayed(song) {
+    if (!song) return false
+    if (song.id != null && playedMem.ids.indexOf(String(song.id)) !== -1) return true
+    const k = songStableKey(song)
+    return !!(k && playedMem.keys.indexOf(k) !== -1)
+  }
+
+  /** @param {object|string} songOrId */
   function markSongPlayed(songOrId) {
-    if (songOrId == null || songOrId === '') return
+    if (songOrId == null || songOrId === '') return false
 
     let song = null
     let id = ''
@@ -448,62 +323,43 @@
       id = song.id != null ? String(song.id) : ''
     } else {
       id = String(songOrId)
-      song = SONGS.find((s) => String(s.id) === id) || null
+      for (let i = 0; i < SONGS.length; i++) {
+        if (String(SONGS[i].id) === id) {
+          song = SONGS[i]
+          break
+        }
+      }
     }
 
     const key = song ? songStableKey(song) : ''
     let changed = false
-
-    if (id && playedState.ids.indexOf(id) === -1) {
-      playedState.ids.push(id)
+    if (id && playedMem.ids.indexOf(id) === -1) {
+      playedMem.ids.push(id)
       changed = true
     }
-    if (key && playedState.keys.indexOf(key) === -1) {
-      playedState.keys.push(key)
+    if (key && playedMem.keys.indexOf(key) === -1) {
+      playedMem.keys.push(key)
       changed = true
     }
-
-    if (!changed && id && playedState.ids.indexOf(id) !== -1) return
-
-    playedState.count = Math.max(playedState.ids.length, playedState.keys.length)
-    playedState.updatedAt = Date.now()
-    persistPlayedNow()
+    if (changed) writePlayedToDisk(playedMem)
+    return changed
   }
 
   function clearPlayedIds() {
-    playedState = emptyPlayed()
+    playedMem = { ids: [], keys: [] }
     try {
       localStorage.removeItem(PLAYED_KEY)
       localStorage.removeItem(PLAYED_KEY_LEGACY)
+      localStorage.removeItem(PLAYED_KEY_LEGACY2)
     } catch (_) {}
-    openPlayedIdb()
-      .then((db) =>
-        idbClearPlayed(db).finally(() => {
-          try {
-            db.close()
-          } catch (_) {}
-        }),
-      )
-      .catch(() => {})
-  }
-
-  function isSongPlayed(song) {
-    if (!song) return false
-    const idSet = new Set(playedState.ids.map(String))
-    const keySet = new Set(playedState.keys)
-    if (song.id != null && idSet.has(String(song.id))) return true
-    const k = songStableKey(song)
-    return !!(k && keySet.has(k))
   }
 
   function getUnplayedSongs() {
-    if (!playedReady) {
-      playedState = mergePlayed(playedState, readLocalStoragePlayed())
-    }
-    return SONGS.filter((s) => s && s.id != null && !isSongPlayed(s))
+    return SONGS.filter(function (s) {
+      return s && s.id != null && !isSongPlayed(s)
+    })
   }
 
-  /** Playlist di brani non ancora giocati; se finiti, ricomincia il catalogo */
   function buildFreshPlaylist() {
     let available = getUnplayedSongs()
     if (!available.length) {
@@ -519,8 +375,109 @@
     const left = Math.max(0, total - played)
     if (!total) return ''
     if (played <= 0) return total + ' brani nel catalogo'
-    if (left <= 0) return 'Catalogo completato — al prossimo avvio si ricomincia'
-    return played + ' fatte · ' + left + ' nuove rimaste'
+    if (left <= 0) return 'Catalogo completato — prossima partita da capo'
+    return played + ' fatte · ' + left + ' rimaste'
+  }
+
+  // ---------- sessione partita (playlist + punteggio + round) ----------
+  function clearSession() {
+    try {
+      localStorage.removeItem(SESSION_KEY)
+    } catch (_) {}
+  }
+
+  function saveSession(state) {
+    if (!state) return false
+    if (state.phase !== 'play' && state.phase !== 'results') return false
+    const playlist = state.playlist || []
+    const payload = {
+      v: 1,
+      phase: state.phase,
+      finished: !!state.finished,
+      playlistIds: playlist.map(function (s) {
+        return s && s.id != null ? String(s.id) : ''
+      }).filter(Boolean),
+      index: state.index | 0,
+      stepIndex: state.stepIndex | 0,
+      score: state.score | 0,
+      revealed: !!state.revealed,
+      revealKind: state.revealKind || null,
+      lastGuessWrong: !!state.lastGuessWrong,
+      rounds: (state.rounds || [])
+        .map(function (r) {
+          if (!r || !r.song || r.song.id == null) return null
+          return {
+            songId: String(r.song.id),
+            result: r.result,
+            stepIndex: r.stepIndex | 0,
+            points: r.points | 0,
+          }
+        })
+        .filter(Boolean),
+      updatedAt: Date.now(),
+    }
+    return lsSetJSON(SESSION_KEY, payload)
+  }
+
+  /** @returns {object|null} pezzi di state da ripristinare, o null */
+  function loadSession() {
+    const raw = lsGetJSON(SESSION_KEY, null)
+    if (!raw || !raw.playlistIds || !raw.playlistIds.length) return null
+    // Partita già finita → non riprendere lo schermo risultati, nuova run
+    if (raw.finished || raw.phase === 'results') {
+      clearSession()
+      return null
+    }
+
+    const byId = new Map()
+    for (let i = 0; i < SONGS.length; i++) {
+      byId.set(String(SONGS[i].id), SONGS[i])
+    }
+
+    const playlist = []
+    for (let i = 0; i < raw.playlistIds.length; i++) {
+      const s = byId.get(String(raw.playlistIds[i]))
+      if (s) playlist.push(s)
+    }
+    if (!playlist.length) {
+      clearSession()
+      return null
+    }
+
+    let index = raw.index | 0
+    if (index < 0) index = 0
+    if (index >= playlist.length) index = playlist.length - 1
+
+    const rounds = []
+    const rr = raw.rounds || []
+    for (let i = 0; i < rr.length; i++) {
+      const r = rr[i]
+      if (!r) continue
+      const song = byId.get(String(r.songId))
+      if (!song) continue
+      rounds.push({
+        song: song,
+        result: r.result,
+        stepIndex: r.stepIndex | 0,
+        points: r.points | 0,
+      })
+    }
+
+    return {
+      phase: 'play',
+      finished: false,
+      playlist: playlist,
+      index: index,
+      stepIndex: Math.min(Math.max(0, raw.stepIndex | 0), DURATION_STEPS.length - 1),
+      score: raw.score | 0,
+      rounds: rounds,
+      revealed: !!raw.revealed,
+      revealKind: raw.revealKind || null,
+      lastGuessWrong: !!raw.lastGuessWrong,
+      preview: null,
+      loading: true,
+      error: null,
+    }
   }
 
   // ---------- music API (JSONP) ----------
@@ -812,6 +769,10 @@
     set(partial) {
       Object.assign(this.state, partial)
       this.emit()
+      // Persisti partita a ogni cambio di stato rilevante
+      if (this.state.phase === 'play' || this.state.phase === 'results') {
+        saveSession(this.state)
+      }
     }
 
     getState() {
@@ -838,15 +799,53 @@
       this.set({ phase: 'intro' })
     }
 
-    async start() {
+    /**
+     * @param {{ fresh?: boolean }} [opts]
+     * fresh:true = nuova partita (ignora sessione salvata, tiene i brani già fatti)
+     */
+    async start(opts) {
       markIntroSeen()
       this.player.stop()
+      const forceNew = !!(opts && opts.fresh)
+
+      if (!forceNew) {
+        const restored = loadSession()
+        if (restored) {
+          const keepStep = restored.stepIndex | 0
+          const keepRevealed = !!restored.revealed
+          const keepKind = restored.revealKind || null
+          const keepWrong = !!restored.lastGuessWrong
+          this.state = Object.assign(this.initialState(), restored)
+          this.state.phase = 'play'
+          this.state.loading = true
+          this.state.revealed = false
+          this.emit()
+          saveSession(this.state)
+          await this.loadCurrentRound()
+          // loadCurrentRound azzera step/reveal: re-applica progresso sessione
+          this.set({
+            stepIndex: keepStep,
+            revealed: keepRevealed,
+            revealKind: keepKind,
+            lastGuessWrong: keepWrong,
+          })
+          if (keepRevealed) {
+            this.player.setMaxSeconds(30)
+          } else {
+            this.player.setMaxSeconds(DURATION_STEPS[keepStep] || 30)
+          }
+          return
+        }
+      }
+
+      clearSession()
       const base = this.initialState()
       base.phase = 'play'
       base.playlist = buildFreshPlaylist()
       base.loading = true
       this.state = base
       this.emit()
+      saveSession(this.state)
       await this.loadCurrentRound()
     }
 
@@ -938,6 +937,9 @@
         })
         this.state.score += points
         markSongPlayed(song)
+        // Salva subito (prima del reveal) così un refresh non perde punti/brano
+        saveSession(this.state)
+        writePlayedToDisk(playedMem)
         return 'correct'
       }
       this.set({ lastGuessWrong: true })
@@ -969,6 +971,7 @@
 
       // Sempre memorizza il brano come "fatto" (anche se l'audio non c'era)
       markSongPlayed(song)
+      writePlayedToDisk(playedMem)
 
       if (this.state.revealed) {
         await this.advanceToNext()
@@ -993,6 +996,7 @@
         lastGuessWrong: false,
         revealKind: alreadyLogged ? this.state.revealKind || 'skipped' : 'skipped',
       })
+      saveSession(this.state)
       await new Promise((r) => requestAnimationFrame(() => r()))
       // Se non c'è preview (errore audio), vai diretto al brano successivo
       if (!this.state.preview) {
@@ -1015,9 +1019,11 @@
           revealed: false,
           revealKind: null,
         })
+        // Sessione conclusa: la prossima apertura riparte dai non-giocati
+        clearSession()
         return
       }
-      this.set({ index: nextIndex, revealed: false, revealKind: null })
+      this.set({ index: nextIndex, revealed: false, revealKind: null, stepIndex: 0 })
       await this.loadCurrentRound()
     }
   }
@@ -1115,7 +1121,8 @@
   async function confirmRestart() {
     const ok = await showConfirm({
       title: 'Nuova partita?',
-      message: 'Il punteggio di questa sessione verr\u00e0 azzerato.',
+      message:
+        'Il punteggio di questa sessione verr\u00e0 azzerato. I brani gi\u00e0 fatti restano memorizzati e non si ripeteranno.',
       okLabel: 'Ricomincia',
       cancelLabel: 'Annulla',
       icon: ICO.refresh,
@@ -1124,7 +1131,8 @@
     draftGuess = ''
     selectedSuggestion = null
     playProgress = 0
-    game.start()
+    clearSession()
+    await game.start({ fresh: true })
   }
 
   const LOGO_HTML =
@@ -1271,6 +1279,7 @@
 
     const inc = nextIncrement(step)
     const playing = game.player.isPlaying()
+    const catalogDone = getPlayedCount()
 
     screen.innerHTML =
       '<header class="topbar">' +
@@ -1279,10 +1288,17 @@
       '<span class="score-num">' +
       state.score +
       '</span></button>' +
-      '<div class="round-pill">' +
+      '<div class="topbar-right">' +
+      '<div class="round-pill" title="Round in questa partita">' +
       round +
       ' / ' +
       total +
+      '</div>' +
+      (catalogDone > 0
+        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti (salvati sul dispositivo)">' +
+          catalogDone +
+          ' fatte</div>'
+        : '') +
       '</div>' +
       '</header>' +
       '<div class="stage">' +
@@ -1593,38 +1609,51 @@
       '</div>'
 
     screen.querySelector('#restart-btn').addEventListener('click', async () => {
-      await game.start()
+      clearSession()
+      await game.start({ fresh: true })
     })
     return screen
   }
 
   game.subscribe(render)
 
-  // Avvio: carica progresso salvato PRIMA di creare la playlist, poi intro/partita
+  // Avvio: carica brani fatti + riprendi partita salvata (stesso meccanismo dell'intro)
   ;(async function boot() {
-    try {
-      await initPlayedStore()
-    } catch (_) {
-      // anche se IDB fallisce, localStorage è già stato letto
-      try {
-        playedState = mergePlayed(playedState, readLocalStoragePlayed())
-        playedReady = true
-      } catch (__) {}
-    }
+    initPlayedStore()
 
     if (hasSeenIntro()) {
+      // Riprende sessione se c'è, altrimenti nuova playlist dai non-giocati
       await game.start()
     } else {
       game.showIntro()
     }
   })()
 
+  // Salva anche quando l'utente chiude/nasconde la PWA
+  try {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') {
+        const st = game.getState()
+        if (st && (st.phase === 'play' || st.phase === 'results')) {
+          saveSession(st)
+          writePlayedToDisk(playedMem)
+        }
+      }
+    })
+    window.addEventListener('pagehide', function () {
+      const st = game.getState()
+      if (st && (st.phase === 'play' || st.phase === 'results')) {
+        saveSession(st)
+        writePlayedToDisk(playedMem)
+      }
+    })
+  } catch (_) {}
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('./sw.js')
         .then((reg) => {
-          // Forza controllo aggiornamenti ad ogni apertura PWA
           try {
             reg.update()
           } catch (_) {}
