@@ -1,5 +1,5 @@
-/* Service worker minimale per installare la PWA offline (shell). */
-const CACHE = 'songguesser-v2.2'
+/* Service worker PWA — network-first per JS/CSS/HTML così progresso e catalogo restano aggiornati */
+const CACHE = 'songguesser-v2.3'
 const ASSETS = [
   './',
   './index.html',
@@ -30,21 +30,58 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+function isShellRequest(url) {
+  const path = url.pathname
+  return (
+    path.endsWith('.js') ||
+    path.endsWith('.css') ||
+    path.endsWith('.html') ||
+    path.endsWith('/') ||
+    path.endsWith('/index.html') ||
+    /\/sw\.js$/.test(path)
+  )
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
 
+  let url
+  try {
+    url = new URL(req.url)
+  } catch (_) {
+    return
+  }
+
+  // Solo same-origin
+  if (url.origin !== self.location.origin) return
+
+  // app.js / songs.js / style / html: SEMPRE rete prima (poi cache offline)
+  // Evita che la PWA resti bloccata su codice vecchio senza persistenza
+  if (isShellRequest(url)) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone()
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {})
+          }
+          return res
+        })
+        .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html'))),
+    )
+    return
+  }
+
+  // Icone/static: cache-first
   event.respondWith(
     caches.match(req).then((cached) => {
       const fresh = fetch(req)
         .then((res) => {
-          try {
-            const url = new URL(req.url)
-            if (url.origin === self.location.origin && res.ok) {
-              const copy = res.clone()
-              caches.open(CACHE).then((c) => c.put(req, copy))
-            }
-          } catch (_) {}
+          if (res && res.ok) {
+            const copy = res.clone()
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {})
+          }
           return res
         })
         .catch(() => cached)
