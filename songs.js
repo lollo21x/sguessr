@@ -1,6 +1,5 @@
-/** Catalogo brani del gioco */
+/** Catalogo brani del gioco (dedup: niente radio edit / remix duplicati) */
 window.SONGS = [
-  // --- catalogo originale ---
   { id: '1', title: 'Call Me Maybe', artist: 'Carly Rae Jepsen', searchQuery: 'Call Me Maybe Carly Rae Jepsen' },
   { id: '2', title: 'Pompeii', artist: 'Bastille', searchQuery: 'Pompeii Bastille' },
   { id: '3', title: 'Hey Brother', artist: 'Avicii', searchQuery: 'Hey Brother Avicii' },
@@ -100,8 +99,6 @@ window.SONGS = [
   { id: '97', title: 'Buon Vento', artist: 'Jovanotti & Alfa', searchQuery: 'Buon Vento Jovanotti Alfa' },
   { id: '98', title: 'Midnight Sun', artist: 'Zara Larsson', searchQuery: 'Midnight Sun Zara Larsson' },
   { id: '99', title: 'Dai Dai', artist: 'Shakira & Burna Boy', searchQuery: 'Dai Dai Shakira Burna Boy' },
-
-  // --- da BEST HITS 2010-2015 ---
   { id: '100', title: 'Love The Way You Lie', artist: 'Eminem & Rihanna', searchQuery: 'Love The Way You Lie Eminem Rihanna' },
   { id: '101', title: 'Black and Yellow', artist: 'Wiz Khalifa', searchQuery: 'Black and Yellow Wiz Khalifa' },
   { id: '102', title: 'Rain Over Me', artist: 'Pitbull & Marc Anthony', searchQuery: 'Rain Over Me Pitbull Marc Anthony' },
@@ -156,13 +153,11 @@ window.SONGS = [
   { id: '151', title: 'Starships', artist: 'Nicki Minaj', searchQuery: 'Starships Nicki Minaj' },
   { id: '152', title: 'When The Beat Drops Out', artist: 'Marlon Roudette', searchQuery: 'When The Beat Drops Out Marlon Roudette' },
   { id: '153', title: 'Bella Vita - DJ Antoine vs. Mad Mark 2K13 Radio Edit', artist: 'DJ Antoine', searchQuery: 'Bella Vita - DJ Antoine vs. Mad Mark 2K13 Radio Edit DJ Antoine' },
-  { id: '154', title: 'Ma Chérie - DJ Antoine Vs Mad Mark 2K12 Radio Edit', artist: 'DJ Antoine & The Beatshakers', searchQuery: 'Ma Chérie - DJ Antoine Vs Mad Mark 2K12 Radio Edit DJ Antoine The Beatshakers' },
   { id: '155', title: 'Woke up Like This - DJ Antoine Vs Mad Mark 2K15 Radio Edit', artist: 'DJ Antoine & Storm', searchQuery: 'Woke up Like This - DJ Antoine Vs Mad Mark 2K15 Radio Edit DJ Antoine Storm' },
   { id: '156', title: 'Sky Is the Limit - Da Brozz Radio Edit', artist: 'DJ Antoine & Mad Mark', searchQuery: 'Sky Is the Limit - Da Brozz Radio Edit DJ Antoine Mad Mark' },
   { id: '157', title: 'Story of My Life', artist: 'One Direction', searchQuery: 'Story of My Life One Direction' },
   { id: '158', title: 'Drag Me Down', artist: 'One Direction', searchQuery: 'Drag Me Down One Direction' },
   { id: '159', title: 'Mr. Saxobeat - Radio Edit', artist: 'Alexandra Stan', searchQuery: 'Mr. Saxobeat - Radio Edit Alexandra Stan' },
-  { id: '160', title: 'Moves Like Jagger - Studio Recording From "The Voice" Performance', artist: 'Maroon 5 & Christina Aguilera', searchQuery: 'Moves Like Jagger - Studio Recording From The Voice Performance Maroon 5 Christina Aguilera' },
   { id: '161', title: 'Talk Dirty (feat. 2 Chainz)', artist: 'Jason Derulo & 2 Chainz', searchQuery: 'Talk Dirty (feat. 2 Chainz) Jason Derulo 2 Chainz' },
   { id: '162', title: 'BURN IT DOWN', artist: 'Linkin Park', searchQuery: 'BURN IT DOWN Linkin Park' },
   { id: '163', title: 'Take Me To Church', artist: 'Hozier', searchQuery: 'Take Me To Church Hozier' },
@@ -203,7 +198,6 @@ window.SONGS = [
   { id: '198', title: 'La La La', artist: 'Naughty Boy & Sam Smith', searchQuery: 'La La La Naughty Boy Sam Smith' },
   { id: '199', title: 'See You Again (feat. Charlie Puth)', artist: 'Wiz Khalifa & Charlie Puth', searchQuery: 'See You Again (feat. Charlie Puth) Wiz Khalifa Charlie Puth' },
   { id: '200', title: 'The Hills', artist: 'The Weeknd', searchQuery: 'The Hills The Weeknd' },
-  { id: '201', title: 'Cheerleader - Felix Jaehn Remix Radio Edit', artist: 'OMI', searchQuery: 'Cheerleader - Felix Jaehn Remix Radio Edit OMI' },
   { id: '202', title: 'Want to Want Me', artist: 'Jason Derulo', searchQuery: 'Want to Want Me Jason Derulo' },
   { id: '203', title: 'Hey Mama (feat. Nicki Minaj, Bebe Rexha & Afrojack)', artist: 'David Guetta, AFROJACK, Bebe Rexha & Nicki Minaj', searchQuery: 'Hey Mama (feat. Nicki Minaj, Bebe Rexha & Afrojack) David Guetta AFROJACK Bebe Rexha Nicki Minaj' },
   { id: '204', title: 'Time of Our Lives', artist: 'Pitbull & Ne-Yo', searchQuery: 'Time of Our Lives Pitbull Ne-Yo' },
@@ -245,7 +239,6 @@ window.SONGS = [
   { id: '240', title: 'A LIGHT THAT NEVER COMES', artist: 'Linkin Park & Steve Aoki', searchQuery: 'A LIGHT THAT NEVER COMES Linkin Park Steve Aoki' },
   { id: '241', title: 'Time', artist: 'Hans Zimmer', searchQuery: 'Time Hans Zimmer' },
   { id: '242', title: 'Heroes (we could be)', artist: 'Alesso & Tove Lo', searchQuery: 'Heroes (we could be) Alesso Tove Lo' },
-  { id: '243', title: 'If I Lose Myself - Alesso vs OneRepublic', artist: 'OneRepublic & Alesso', searchQuery: 'If I Lose Myself - Alesso vs OneRepublic OneRepublic Alesso' },
   { id: '244', title: 'Alive', artist: 'Empire Of The Sun', searchQuery: 'Alive Empire Of The Sun' },
   { id: '245', title: "Dear Darlin'", artist: 'Olly Murs', searchQuery: 'Dear Darlin Olly Murs' },
   { id: '246', title: 'Gecko (Overdrive) - Radio Edit', artist: 'Oliver Heldens & Becky Hill', searchQuery: 'Gecko (Overdrive) - Radio Edit Oliver Heldens Becky Hill' },
@@ -253,8 +246,6 @@ window.SONGS = [
   { id: '248', title: 'Turn Around (5,4,3,2,1)', artist: 'Flo Rida', searchQuery: 'Turn Around (5,4,3,2,1) Flo Rida' },
   { id: '249', title: 'Summer Paradise (feat. Sean Paul) - Single Version', artist: 'Simple Plan & Sean Paul', searchQuery: 'Summer Paradise (feat. Sean Paul) - Single Version Simple Plan Sean Paul' },
   { id: '250', title: 'She Wolf (Falling to Pieces) [feat. Sia]', artist: 'David Guetta & Sia', searchQuery: 'She Wolf (Falling to Pieces) [feat. Sia] David Guetta Sia' },
-
-  // --- da HIT ITALIANE 2015-19 ---
   { id: '251', title: 'El Mismo Sol', artist: 'Alvaro Soler', searchQuery: 'El Mismo Sol Alvaro Soler' },
   { id: '252', title: 'Perdoname', artist: 'Deorro, DyCy & Adrian Delgado', searchQuery: 'Perdoname Deorro DyCy Adrian Delgado' },
   { id: '253', title: 'Maria Salvador (with Il Cile)', artist: 'J-AX & Il Cile', searchQuery: 'Maria Salvador (with Il Cile) J-AX Il Cile' },
@@ -329,15 +320,11 @@ window.SONGS = [
   { id: '322', title: 'Senza farlo apposta', artist: 'Shade & Federica Carta', searchQuery: 'Senza farlo apposta Shade Federica Carta' },
   { id: '323', title: 'Ti volevo dedicare (feat. J-AX & Boomdabash)', artist: 'Rocco Hunt, J-AX & Boomdabash', searchQuery: 'Ti volevo dedicare (feat. J-AX & Boomdabash) Rocco Hunt J-AX Boomdabash' },
   { id: '324', title: 'Italiani in vacanza (feat. DJ Matrix & Matt Joe)', artist: 'iPantellas, Giuli, DJ Matrix & Matt Joe', searchQuery: 'Italiani in vacanza (feat. DJ Matrix & Matt Joe) iPantellas Giuli DJ Matrix Matt Joe' },
-
-  // --- da Top hit italiane estive 2010-2020 ---
   { id: '325', title: 'Tranne Te', artist: 'Fabri Fibra', searchQuery: 'Tranne Te Fabri Fibra' },
   { id: '326', title: 'Il Più Grande Spettacolo Dopo Il Big Bang', artist: 'Jovanotti', searchQuery: 'Il Più Grande Spettacolo Dopo Il Big Bang Jovanotti' },
   { id: '327', title: 'P.E.S.', artist: 'Club Dogo & Giuliano Palma', searchQuery: 'P.E.S. Club Dogo Giuliano Palma' },
   { id: '328', title: "Gli Anni D'Oro", artist: 'Jake La Furia', searchQuery: 'Gli Anni DOro Jake La Furia' },
   { id: '329', title: 'Maracanã', artist: 'Emis Killa', searchQuery: 'Maracanã Emis Killa' },
-
-  // --- da Hit estive internazionali ---
   { id: '330', title: 'One Kiss (with Dua Lipa)', artist: 'Calvin Harris & Dua Lipa', searchQuery: 'One Kiss (with Dua Lipa) Calvin Harris Dua Lipa' },
   { id: '331', title: 'X (feat. Maluma & Ozuna) - Remix', artist: 'Nicky Jam, J Balvin, Maluma & Ozuna', searchQuery: 'X (feat. Maluma & Ozuna) - Remix Nicky Jam J Balvin Maluma Ozuna' },
   { id: '332', title: 'Light It Up', artist: 'Major Lazer, Nyla & Fuse ODG', searchQuery: 'Light It Up Major Lazer Nyla Fuse ODG' },
@@ -367,7 +354,6 @@ window.SONGS = [
   { id: '356', title: 'Beauty And A Beat', artist: 'Justin Bieber & Nicki Minaj', searchQuery: 'Beauty And A Beat Justin Bieber Nicki Minaj' },
   { id: '357', title: 'World Hold On (Children Of The Sky) - FISHER Rework', artist: 'Bob Sinclar, FISHER & Steve Edwards', searchQuery: 'World Hold On (Children Of The Sky) - FISHER Rework Bob Sinclar FISHER Steve Edwards' },
   { id: '358', title: '(It Goes Like) Nanana - Edit', artist: 'Peggy Gou', searchQuery: '(It Goes Like) Nanana - Edit Peggy Gou' },
-  { id: '359', title: 'Balada - Ao Vivo', artist: 'Gusttavo Lima', searchQuery: 'Balada - Ao Vivo Gusttavo Lima' },
   { id: '360', title: 'No Lie', artist: 'Sean Paul & Dua Lipa', searchQuery: 'No Lie Sean Paul Dua Lipa' },
   { id: '361', title: 'Stereo Love', artist: 'Edward Maya & Vika Jigulina', searchQuery: 'Stereo Love Edward Maya Vika Jigulina' },
   { id: '362', title: 'Pepas', artist: 'Farruko', searchQuery: 'Pepas Farruko' },
@@ -411,7 +397,6 @@ window.SONGS = [
   { id: '400', title: 'Nuestra Cancion', artist: 'Elvis Crespo', searchQuery: 'Nuestra Cancion Elvis Crespo' },
   { id: '401', title: 'BILLY', artist: '6ix9ine', searchQuery: 'BILLY 6ix9ine' },
   { id: '402', title: 'GUMMO', artist: '6ix9ine', searchQuery: 'GUMMO 6ix9ine' },
-  { id: '403', title: 'Ma Chérie - DJ Antoine & Mad Mark 2K12 Radio Edit', artist: 'DJ Antoine, The Beatshakers & Mad Mark', searchQuery: 'Ma Chérie - DJ Antoine & Mad Mark 2K12 Radio Edit DJ Antoine The Beatshakers Mad Mark' },
   { id: '404', title: 'S&M', artist: 'Rihanna', searchQuery: 'S&M Rihanna' },
   { id: '405', title: 'Only Girl (In The World)', artist: 'Rihanna', searchQuery: 'Only Girl (In The World) Rihanna' },
   { id: '406', title: 'theclubrock', artist: 'Benny Bellson', searchQuery: 'theclubrock Benny Bellson' },
@@ -419,8 +404,6 @@ window.SONGS = [
   { id: '408', title: 'Walking On A Dream', artist: 'Empire Of The Sun', searchQuery: 'Walking On A Dream Empire Of The Sun' },
   { id: '409', title: 'National Treasures', artist: 'Drake', searchQuery: 'National Treasures Drake' },
   { id: '410', title: 'Weekend a Miami (feat. Shiva) - prod. Strage', artist: 'Dani Faiv & Shiva', searchQuery: 'Weekend a Miami (feat. Shiva) - prod. Strage Dani Faiv Shiva' },
-
-  // --- da Hit Internazionali ---
   { id: '411', title: 'MUCHACHA', artist: 'Aissa, Rvfv & Kreamly', searchQuery: 'MUCHACHA Aissa Rvfv Kreamly' },
   { id: '412', title: 'BAILE INoLVIDABLE', artist: 'Bad Bunny', searchQuery: 'BAILE INoLVIDABLE Bad Bunny' },
   { id: '413', title: 'stupid song', artist: 'Olivia Rodrigo', searchQuery: 'stupid song Olivia Rodrigo' },
@@ -513,8 +496,6 @@ window.SONGS = [
   { id: '500', title: 'Gabriela', artist: 'KATSEYE', searchQuery: 'Gabriela KATSEYE' },
   { id: '501', title: 'Azizam', artist: 'Ed Sheeran', searchQuery: 'Azizam Ed Sheeran' },
   { id: '502', title: 'Yellow', artist: 'Coldplay', searchQuery: 'Yellow Coldplay' },
-
-  // --- da Mix anni 2020 ---
   { id: '503', title: 'Splinter Cell', artist: 'G.Mineiro, Flatpearl, Jiz & Succo', searchQuery: 'Splinter Cell G.Mineiro Flatpearl Jiz Succo' },
   { id: '504', title: 'Nobel', artist: 'Lubi', searchQuery: 'Nobel Lubi' },
   { id: '505', title: 'POR TI', artist: 'Yapi & SOUNDPLUG', searchQuery: 'POR TI Yapi SOUNDPLUG' },
@@ -555,8 +536,6 @@ window.SONGS = [
   { id: '540', title: 'a me piace #249 (feat. LILCR)', artist: 'dedde & LILCR', searchQuery: 'a me piace #249 (feat. LILCR) dedde LILCR' },
   { id: '541', title: 'No lo sé', artist: 'Lacrim', searchQuery: 'No lo sé Lacrim' },
   { id: '542', title: 'Papaya', artist: 'VillaBanks', searchQuery: 'Papaya VillaBanks' },
-
-  // --- da Best of raptrap ITALIANA 🇮🇹 ---
   { id: '543', title: 'Brivido', artist: 'Guè & Marracash', searchQuery: 'Brivido Guè Marracash' },
   { id: '544', title: 'Allenamento #2', artist: 'Capo Plaza & AVA', searchQuery: 'Allenamento #2 Capo Plaza AVA' },
   { id: '545', title: 'Sportswear', artist: 'Dark Polo Gang', searchQuery: 'Sportswear Dark Polo Gang' },
