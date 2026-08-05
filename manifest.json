@@ -1,6 +1,6 @@
 {
-  "name": "Song Guesser",
-  "short_name": "SongGuesser",
+  "name": "Sguessr",
+  "short_name": "Sguessr",
   "description": "Ascolta, indovina, scala la classifica. Il quiz musicale a colpi di secondi.",
   "start_url": "./index.html",
   "display": "standalone",
