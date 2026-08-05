@@ -1,4 +1,4 @@
-/* Song Guesser - sito statico puro (niente npm) */
+/* Sguessr - sito statico puro (niente npm) */
 ;(() => {
   'use strict'
 
@@ -1136,7 +1136,7 @@
   }
 
   const LOGO_HTML =
-    '<div class="logo-mark"><img src="pwa-192.png" alt="Song Guesser" width="96" height="96" decoding="async" /></div>'
+    '<div class="logo-mark"><img src="pwa-192.png" alt="Sguessr" width="96" height="96" decoding="async" /></div>'
 
   function renderLoading(msg) {
     const screen = document.createElement('div')
@@ -1202,7 +1202,7 @@
     screen.innerHTML =
       '<div class="home-content">' +
       LOGO_HTML +
-      '<h1 class="brand-title">Song Guesser</h1>' +
+      '<h1 class="brand-title">Sguessr</h1>' +
       '<p class="tagline">Ascolta un pezzo sempre pi\u00f9 lungo. Indovina il brano prima di tutti.</p>' +
       '<ul class="rules">' +
       '<li><span>1</span> Parti da soli <strong>2 secondi</strong></li>' +
@@ -1324,7 +1324,7 @@
       '</div>' +
       statusHtml +
       (!revealed && state.lastGuessWrong
-        ? '<p class="wrong-msg">Nope! Riprova o sblocca pi\u00f9 secondi.</p>'
+        ? '<p class="wrong-msg">Sbagliato! Riprova o sblocca pi\u00f9 secondi.</p>'
         : '') +
       '</div>' +
       '<div class="controls">' +
