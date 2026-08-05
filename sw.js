@@ -1,5 +1,5 @@
 /* Service worker minimale per installare la PWA offline (shell). */
-const CACHE = 'songguesser-v2'
+const CACHE = 'songguesser-v2.2'
 const ASSETS = [
   './',
   './index.html',
