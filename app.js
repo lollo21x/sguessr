@@ -1421,13 +1421,9 @@
       '<div style="flex:1"></div>' +
       '<div class="topbar-right">' +
       '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
-      (played > 0
-        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti (salvati sul dispositivo)">' +
-          played +
-          ' fatte</div>'
-        : '<div class="round-pill catalog-pill" title="Catalogo canzoni">' +
-          SONGS.length +
-          ' brani</div>') +
+      '<div class="round-pill" title="Salvataggi e Dati">' +
+      ICO.disk +
+      '<span>Dati</span></div>' +
       '</button>' +
       '</div>' +
       '</header>' +
@@ -1528,16 +1524,11 @@
       '</span></button>' +
       '<div class="topbar-right">' +
       '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
-      '<div class="round-pill" title="Round in questa partita">' +
+      '<div class="round-pill" title="Round in questa partita (clicca per salvataggi)">' +
       round +
       ' / ' +
       total +
       '</div>' +
-      (catalogDone > 0
-        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti (salvati sul dispositivo)">' +
-          catalogDone +
-          ' fatte</div>'
-        : '') +
       '</button>' +
       '</div>' +
       '</header>' +
@@ -1838,11 +1829,9 @@
       '<div style="flex:1"></div>' +
       '<div class="topbar-right">' +
       '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
-      (played > 0
-        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti">' +
-          played +
-          ' fatte</div>'
-        : '') +
+      '<div class="round-pill" title="Salvataggi e Dati">' +
+      ICO.disk +
+      '<span>Dati</span></div>' +
       '</button>' +
       '</div>' +
       '</header>' +
