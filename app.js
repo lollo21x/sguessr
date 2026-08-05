@@ -6,6 +6,10 @@
   const DURATION_STEPS = [2, 5, 10, 15, 20, 30]
   const POINTS_BY_STEP = [6, 5, 4, 3, 2, 1]
   const INTRO_KEY = 'songguesser_intro_seen'
+  /** localStorage: { v, ids: string[], count: number, updatedAt: number } oppure array legacy */
+  const PLAYED_KEY = 'songguesser_played_ids'
+  /** Limite solo per ricerche generiche sul titolo; per artista si mostrano tutti i match */
+  const SUGGEST_LIMIT_DEFAULT = 12
 
   // ---------- helpers canzoni ----------
   function normalize(text) {
@@ -23,6 +27,17 @@
     return song.title + ' - ' + song.artist
   }
 
+  /** Token artista (nomi singoli, senza feat/&/,) per match tipo "guetta" → David Guetta */
+  function artistNameTokens(artist) {
+    return normalize(artist)
+      .split(/\b(?:feat|ft|featuring|with|vs|x)\b/g)
+      .join(' ')
+      .split(/[&,;/]+/)
+      .join(' ')
+      .split(/\s+/)
+      .filter((t) => t && t.length > 1)
+  }
+
   function isCorrectGuess(guess, song) {
     const g = normalize(guess)
     if (!g) return false
@@ -38,26 +53,76 @@
     return false
   }
 
+  /**
+   * Autocomplete: match su titolo E artista (anche pezzi di nome).
+   * Cercando un artista compaiono TUTTE le sue canzoni del catalogo (scrollabili).
+   */
   function filterSongs(query, limit) {
-    limit = limit || 8
     const q = normalize(query)
-    if (!q) return []
-    return SONGS.map((song) => {
+    if (!q || q.length < 1) return []
+    const qWords = q.split(/\s+/).filter(Boolean)
+
+    const scored = []
+    for (let i = 0; i < SONGS.length; i++) {
+      const song = SONGS[i]
       const title = normalize(song.title)
       const artist = normalize(song.artist)
       const full = title + ' ' + artist
+      const disp = normalize(displayName(song))
+      const tokens = artistNameTokens(song.artist)
       let score = 0
-      if (title.startsWith(q)) score = 100
-      else if (full.startsWith(q)) score = 90
-      else if (title.includes(q)) score = 70
-      else if (artist.startsWith(q)) score = 50
-      else if (full.includes(q)) score = 40
-      return { song, score }
+      let artistHit = false
+
+      if (title === q || full === q || disp === q) {
+        score = 200
+      } else if (title.startsWith(q)) {
+        score = 100
+      } else if (artist === q || artist.startsWith(q + ' ') || artist.startsWith(q)) {
+        score = 96
+        artistHit = true
+      } else if (q.length >= 2 && tokens.some((t) => t === q || t.startsWith(q))) {
+        // "sfera", "guetta", "bruno"…
+        score = 94
+        artistHit = true
+      } else if (q.length >= 3 && artist.includes(q)) {
+        score = 90
+        artistHit = true
+      } else if (title.includes(q)) {
+        score = 70
+      } else if (full.startsWith(q)) {
+        score = 65
+      } else if (qWords.length > 1 && qWords.every((w) => full.includes(w))) {
+        score = 60
+      } else if (full.includes(q)) {
+        score = 40
+      }
+
+      if (score > 0) scored.push({ song, score, artistHit, title })
+    }
+
+    if (!scored.length) return []
+
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      if (a.title < b.title) return -1
+      if (a.title > b.title) return 1
+      return 0
     })
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map((x) => x.song)
+
+    // Match forti sull'artista: mostra TUTTE le canzoni (niente taglio)
+    const strongArtist = scored.filter((x) => x.artistHit && x.score >= 90)
+    if (limit == null && q.length >= 2 && strongArtist.length >= 1) {
+      // Solo i brani dove l'artista matcha, ordinati per titolo
+      strongArtist.sort((a, b) => {
+        if (a.title < b.title) return -1
+        if (a.title > b.title) return 1
+        return 0
+      })
+      return strongArtist.map((x) => x.song)
+    }
+
+    const cap = limit == null ? SUGGEST_LIMIT_DEFAULT : limit
+    return scored.slice(0, cap).map((x) => x.song)
   }
 
   function shuffle(arr) {
@@ -91,6 +156,125 @@
     try {
       localStorage.setItem(INTRO_KEY, '1')
     } catch (_) {}
+  }
+
+  /**
+   * Progresso catalogo in localStorage (sopravvive a chiusure/riavvii).
+   * Formato: { v: 1, ids: string[], count: number, updatedAt: number }
+   * Compatibile con il vecchio array di id.
+   */
+  function getPlayedStore() {
+    try {
+      const raw = localStorage.getItem(PLAYED_KEY)
+      if (!raw) return { v: 1, ids: [], count: 0, updatedAt: 0 }
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        const ids = uniqueIds(parsed.map(String))
+        const migrated = { v: 1, ids, count: ids.length, updatedAt: Date.now() }
+        try {
+          localStorage.setItem(PLAYED_KEY, JSON.stringify(migrated))
+        } catch (_) {}
+        return migrated
+      }
+      if (parsed && typeof parsed === 'object') {
+        const ids = uniqueIds([].concat(parsed.ids || []).map(String))
+        return {
+          v: 1,
+          ids,
+          count: ids.length,
+          updatedAt: Number(parsed.updatedAt) || 0,
+        }
+      }
+    } catch (_) {}
+    return { v: 1, ids: [], count: 0, updatedAt: 0 }
+  }
+
+  function uniqueIds(ids) {
+    const seen = new Set()
+    const out = []
+    for (let i = 0; i < ids.length; i++) {
+      const id = String(ids[i] || '')
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      out.push(id)
+    }
+    return out
+  }
+
+  function getPlayedIds() {
+    return getPlayedStore().ids
+  }
+
+  function getPlayedCount() {
+    return getPlayedStore().count
+  }
+
+  function savePlayedStore(store) {
+    const ids = uniqueIds(store.ids || [])
+    const payload = {
+      v: 1,
+      ids,
+      count: ids.length,
+      updatedAt: Date.now(),
+    }
+    try {
+      localStorage.setItem(PLAYED_KEY, JSON.stringify(payload))
+    } catch (_) {
+      // Quota piena: tieni almeno gli id più recenti
+      try {
+        const trimmed = ids.slice(-500)
+        localStorage.setItem(
+          PLAYED_KEY,
+          JSON.stringify({
+            v: 1,
+            ids: trimmed,
+            count: trimmed.length,
+            updatedAt: Date.now(),
+          }),
+        )
+      } catch (__) {}
+    }
+  }
+
+  function markSongPlayed(songId) {
+    if (songId == null || songId === '') return
+    const id = String(songId)
+    const store = getPlayedStore()
+    if (store.ids.includes(id)) return
+    store.ids.push(id)
+    savePlayedStore(store)
+  }
+
+  function clearPlayedIds() {
+    try {
+      localStorage.removeItem(PLAYED_KEY)
+    } catch (_) {}
+  }
+
+  function getUnplayedSongs() {
+    const played = new Set(getPlayedIds())
+    // Tieni solo id che esistono ancora nel catalogo (evita id orfani)
+    return SONGS.filter((s) => s && s.id != null && !played.has(String(s.id)))
+  }
+
+  /** Playlist di brani non ancora giocati; se finiti, ricomincia il catalogo */
+  function buildFreshPlaylist() {
+    let available = getUnplayedSongs()
+    if (!available.length) {
+      clearPlayedIds()
+      available = SONGS.slice()
+    }
+    return shuffle(available)
+  }
+
+  function catalogProgressLabel() {
+    const total = SONGS.length
+    const played = getPlayedCount()
+    const left = Math.max(0, total - played)
+    if (!total) return ''
+    if (played <= 0) return total + ' brani nel catalogo'
+    if (left <= 0) return 'Catalogo completato — al prossimo avvio si ricomincia'
+    return played + ' fatte · ' + left + ' nuove rimaste'
   }
 
   // ---------- music API (JSONP) ----------
@@ -413,7 +597,7 @@
       this.player.stop()
       const base = this.initialState()
       base.phase = 'play'
-      base.playlist = shuffle(SONGS)
+      base.playlist = buildFreshPlaylist()
       base.loading = true
       this.state = base
       this.emit()
@@ -442,7 +626,7 @@
         if (!preview) {
           this.set({
             loading: false,
-            error: 'Preview non trovato per "' + song.title + '". Passa alla successiva.',
+            error: 'Audio non disponibile per questo brano. Passa alla successiva.',
           })
           return
         }
@@ -452,7 +636,7 @@
       } catch (_) {
         this.set({
           loading: false,
-          error: 'Errore nel caricamento audio. Controlla la connessione o passa avanti.',
+          error: 'Non riesco a caricare l\'audio. Controlla la connessione o passa avanti.',
         })
       }
     }
@@ -507,6 +691,7 @@
           points,
         })
         this.state.score += points
+        markSongPlayed(song.id)
         return 'correct'
       }
       this.set({ lastGuessWrong: true })
@@ -536,29 +721,45 @@
       const song = this.currentSong()
       if (!song) return
 
+      // Sempre memorizza il brano come "fatto" (anche se l'audio non c'era)
+      markSongPlayed(song.id)
+
       if (this.state.revealed) {
         await this.advanceToNext()
         return
       }
 
       this.player.stop()
-      this.state.rounds.push({
-        song,
-        result: 'skipped',
-        stepIndex: this.state.stepIndex,
-        points: 0,
-      })
+      // Evita di duplicare la round se già registrata (es. correct → reveal → next)
+      const alreadyLogged = this.state.rounds.some(
+        (r) => r && r.song && String(r.song.id) === String(song.id),
+      )
+      if (!alreadyLogged) {
+        this.state.rounds.push({
+          song,
+          result: 'skipped',
+          stepIndex: this.state.stepIndex,
+          points: 0,
+        })
+      }
       this.set({
         revealed: true,
         lastGuessWrong: false,
-        revealKind: 'skipped',
+        revealKind: alreadyLogged ? this.state.revealKind || 'skipped' : 'skipped',
       })
       await new Promise((r) => requestAnimationFrame(() => r()))
+      // Se non c'è preview (errore audio), vai diretto al brano successivo
+      if (!this.state.preview) {
+        await this.advanceToNext()
+        return
+      }
       await this.playFullPreview()
     }
 
     async advanceToNext() {
       this.player.stop()
+      const cur = this.currentSong()
+      if (cur) markSongPlayed(cur.id)
       const nextIndex = this.state.index + 1
       if (nextIndex >= this.state.playlist.length) {
         this.set({
@@ -575,20 +776,19 @@
     }
   }
 
-  // ---------- UI icons (SVG inline, stile player) ----------
+  // ---------- UI icons (SVG inline) ----------
   const ICO = {
-    trophy:
-      '<svg class="ico ico-fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v2a5 5 0 0 1-4 4.9V13h3v2H8v-2h3v-2.1A5 5 0 0 1 7 6V4zm-2 1H3v1a3 3 0 0 0 3 3h.2A4.9 4.9 0 0 1 5 5zm14 0h-2a4.9 4.9 0 0 1-1.2 4H18a3 3 0 0 0 3-3V5zM9 19h6v1.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V19zm1-2h4v2h-4v-2z"/></svg>',
+    // Stella punti (al posto della coppa)
+    star:
+      '<svg class="ico ico-fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.72 5.52 6.1.89-4.41 4.3 1.04 6.06L12 16.5l-5.45 2.87 1.04-6.06-4.41-4.3 6.1-.89L12 2.6z"/></svg>',
     check:
       '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>',
     play:
       '<svg class="ico ico-fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5z"/></svg>',
     pause:
       '<svg class="ico ico-fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z"/></svg>',
-    // Skip audio: avanti nel pezzo (come seek +)
     seek:
       '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6l8 6-8 6V6z"/><path d="M13 6l8 6-8 6V6z"/></svg>',
-    // Next track: salta brano
     nextTrack:
       '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l9 6-9 6V6z"/><path d="M18 6v12"/></svg>',
     note:
@@ -668,8 +868,8 @@
 
   async function confirmRestart() {
     const ok = await showConfirm({
-      title: 'Ricominciare?',
-      message: 'La partita attuale verr\u00e0 azzerata e ripartir\u00e0 da zero.',
+      title: 'Nuova partita?',
+      message: 'Il punteggio di questa sessione verr\u00e0 azzerato.',
       okLabel: 'Ricomincia',
       cancelLabel: 'Annulla',
       icon: ICO.refresh,
@@ -682,7 +882,7 @@
   }
 
   const LOGO_HTML =
-    '<div class="logo-mark"><img src="pwa-192.png" alt="Song Guesser" width="88" height="88" decoding="async" /></div>'
+    '<div class="logo-mark"><img src="pwa-192.png" alt="Song Guesser" width="96" height="96" decoding="async" /></div>'
 
   function renderLoading(msg) {
     const screen = document.createElement('div')
@@ -740,28 +940,34 @@
   }
 
   function renderHome() {
+    const remaining = getUnplayedSongs().length
+    const played = getPlayedCount()
+    const hint = catalogProgressLabel() || 'Pronto a mettere alla prova le tue orecchie?'
     const screen = document.createElement('div')
     screen.className = 'screen home'
     screen.innerHTML =
       '<div class="home-content">' +
       LOGO_HTML +
-      '<h1>Song Guesser</h1>' +
-      '<p class="tagline">Ascolta un pezzo sempre pi\u00f9 lungo. Indovina la canzone dal database.</p>' +
+      '<h1 class="brand-title">Song Guesser</h1>' +
+      '<p class="tagline">Ascolta un pezzo sempre pi\u00f9 lungo. Indovina il brano prima di tutti.</p>' +
       '<ul class="rules">' +
-      '<li><span>1</span> Parti da <strong>2 secondi</strong></li>' +
-      '<li><span>2</span> Con <strong>Skip</strong> sblocchi pi\u00f9 audio (fino a 30s)</li>' +
-      '<li><span>3</span> Indovina dal catalogo, o premi <strong>Next</strong></li>' +
+      '<li><span>1</span> Parti da soli <strong>2 secondi</strong></li>' +
+      '<li><span>2</span> Sblocca pi\u00f9 audio e alza la posta</li>' +
+      '<li><span>3</span> Indovina il titolo e fai punti</li>' +
       '</ul>' +
-      '<button class="btn btn-primary btn-lg" id="start-btn">Inizia la partita</button>' +
+      '<button class="btn btn-primary btn-lg" id="start-btn">Gioca ora</button>' +
       '<p class="hint">' +
-      SONGS.length +
-      ' canzoni / preview gratis (~30s)</p>' +
+      escapeHtml(hint) +
+      '</p>' +
+      (played > 0 && remaining > 0
+        ? '<p class="hint hint-sub">I brani gi\u00e0 fatti non si ripetono, anche dopo aver chiuso l\u2019app.</p>'
+        : '') +
       '</div>'
 
     screen.querySelector('#start-btn').addEventListener('click', async () => {
       const btn = screen.querySelector('#start-btn')
       btn.disabled = true
-      btn.textContent = 'Caricamento...'
+      btn.textContent = 'Ci siamo...'
       await game.start()
     })
     return screen
@@ -786,7 +992,7 @@
 
     let statusHtml = ''
     if (state.loading) {
-      statusHtml = '<p class="status">Caricamento traccia...</p>'
+      statusHtml = '<p class="status">Caricamento brano...</p>'
     } else if (state.error) {
       statusHtml = '<p class="status error">' + escapeHtml(state.error) + '</p>'
     } else if (revealed && song) {
@@ -802,10 +1008,10 @@
         '<p class="reveal-artist">' +
         escapeHtml(song.artist) +
         '</p>' +
-        '<p class="reveal-hint">Ascolto completo (~30s) · Next per continuare</p>' +
+        '<p class="reveal-hint">Ascolta il pezzo · Next per continuare</p>' +
         '</div>'
     } else {
-      statusHtml = '<p class="status">Ascolta e indovina...</p>'
+      statusHtml = '<p class="status">Ascolta e indovina!</p>'
     }
 
     const artHtml =
@@ -823,7 +1029,7 @@
     screen.innerHTML =
       '<header class="topbar">' +
       '<button type="button" class="btn-score" id="score-btn" title="Ricomincia la partita">' +
-      ICO.trophy +
+      ICO.star +
       '<span class="score-num">' +
       state.score +
       '</span></button>' +
@@ -856,7 +1062,7 @@
       '</div>' +
       statusHtml +
       (!revealed && state.lastGuessWrong
-        ? '<p class="wrong-msg">x Non \u00e8 questa. Riprova o sblocca pi\u00f9 secondi.</p>'
+        ? '<p class="wrong-msg">Nope! Riprova o sblocca pi\u00f9 secondi.</p>'
         : '') +
       '</div>' +
       '<div class="controls">' +
@@ -1041,23 +1247,31 @@
           return
         }
         suggestions.hidden = false
-        suggestions.innerHTML = matches
-          .map(
-            (s) =>
-              '<li data-id="' +
-              s.id +
-              '" role="option"><strong>' +
-              escapeHtml(s.title) +
-              '</strong><span>' +
-              escapeHtml(s.artist) +
-              '</span></li>',
-          )
-          .join('')
-        suggestions.querySelectorAll('li').forEach((li) => {
+        const countNote =
+          matches.length > SUGGEST_LIMIT_DEFAULT
+            ? '<li class="suggestions-more" role="presentation">' +
+              matches.length +
+              ' brani — scorri per vederli tutti</li>'
+            : ''
+        suggestions.innerHTML =
+          countNote +
+          matches
+            .map(
+              (s) =>
+                '<li data-id="' +
+                escapeHtml(String(s.id)) +
+                '" role="option"><strong>' +
+                escapeHtml(s.title) +
+                '</strong><span>' +
+                escapeHtml(s.artist) +
+                '</span></li>',
+            )
+            .join('')
+        suggestions.querySelectorAll('li[data-id]').forEach((li) => {
           li.addEventListener('mousedown', (e) => {
             e.preventDefault()
             const id = li.getAttribute('data-id')
-            const song = matches.find((m) => m.id === id)
+            const song = matches.find((m) => String(m.id) === String(id))
             if (!song) return
             selectedSuggestion = song
             input.value = displayName(song)
@@ -1083,6 +1297,7 @@
     const correct = state.rounds.filter((r) => r.result === 'correct').length
     const total = state.rounds.length
     const maxScore = total * 6
+    const progress = catalogProgressLabel()
 
     const rows = state.rounds
       .map((r) => {
@@ -1111,7 +1326,7 @@
     screen.innerHTML =
       '<div class="results-content">' +
       LOGO_HTML +
-      '<h1>Fine partita</h1>' +
+      '<h1 class="brand-title">Che partita!</h1>' +
       '<div class="big-score">' +
       state.score +
       '<small> / ' +
@@ -1121,11 +1336,14 @@
       correct +
       '</strong> su <strong>' +
       total +
-      '</strong> canzoni</p>' +
+      '</strong> brani</p>' +
+      (progress
+        ? '<p class="hint">' + escapeHtml(progress) + '</p>'
+        : '') +
       '<ul class="result-list">' +
       rows +
       '</ul>' +
-      '<button class="btn btn-primary btn-lg" id="restart-btn">Rigioca</button>' +
+      '<button class="btn btn-primary btn-lg" id="restart-btn">Ancora una volta</button>' +
       '</div>'
 
     screen.querySelector('#restart-btn').addEventListener('click', async () => {
