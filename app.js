@@ -423,11 +423,6 @@
   function loadSession() {
     const raw = lsGetJSON(SESSION_KEY, null)
     if (!raw || !raw.playlistIds || !raw.playlistIds.length) return null
-    // Partita già finita → non riprendere lo schermo risultati, nuova run
-    if (raw.finished || raw.phase === 'results') {
-      clearSession()
-      return null
-    }
 
     const byId = new Map()
     for (let i = 0; i < SONGS.length; i++) {
@@ -444,10 +439,6 @@
       return null
     }
 
-    let index = raw.index | 0
-    if (index < 0) index = 0
-    if (index >= playlist.length) index = playlist.length - 1
-
     const rounds = []
     const rr = raw.rounds || []
     for (let i = 0; i < rr.length; i++) {
@@ -462,6 +453,28 @@
         points: r.points | 0,
       })
     }
+
+    if (raw.finished || raw.phase === 'results') {
+      return {
+        phase: 'results',
+        finished: true,
+        playlist: playlist,
+        index: raw.index | 0,
+        stepIndex: 0,
+        score: raw.score | 0,
+        rounds: rounds,
+        revealed: false,
+        revealKind: null,
+        lastGuessWrong: false,
+        preview: null,
+        loading: false,
+        error: null,
+      }
+    }
+
+    let index = raw.index | 0
+    if (index < 0) index = 0
+    if (index >= playlist.length) index = playlist.length - 1
 
     return {
       phase: 'play',
@@ -811,6 +824,11 @@
       if (!forceNew) {
         const restored = loadSession()
         if (restored) {
+          if (restored.phase === 'results') {
+            this.state = Object.assign(this.initialState(), restored)
+            this.emit()
+            return
+          }
           const keepStep = restored.stepIndex | 0
           const keepRevealed = !!restored.revealed
           const keepKind = restored.revealKind || null
@@ -869,20 +887,16 @@
       try {
         const preview = await fetchPreview(song)
         if (!preview) {
-          this.set({
-            loading: false,
-            error: 'Audio non disponibile per questo brano. Passa alla successiva.',
-          })
+          // Audio non disponibile: passa automaticamente al prossimo brano
+          await this.advanceToNext()
           return
         }
         await this.player.load(preview.previewUrl)
         this.player.setMaxSeconds(DURATION_STEPS[0])
         this.set({ preview, loading: false, error: null })
       } catch (_) {
-        this.set({
-          loading: false,
-          error: 'Non riesco a caricare l\'audio. Controlla la connessione o passa avanti.',
-        })
+        // Errore caricamento audio: passa automaticamente al prossimo brano
+        await this.advanceToNext()
       }
     }
 
@@ -1049,6 +1063,12 @@
       '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.4L3 16"/><path d="M3 21v-5h5"/></svg>',
     nextMini:
       '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l9 6-9 6V6z"/><path d="M18 6v12"/></svg>',
+    download:
+      '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    upload:
+      '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+    disk:
+      '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   }
 
   // ---------- UI ----------
@@ -1135,6 +1155,203 @@
     await game.start({ fresh: true })
   }
 
+  function showDataModal() {
+    return new Promise((resolve) => {
+      const playedCount = getPlayedCount()
+      const totalCatalog = SONGS.length
+      const state = game.getState()
+
+      let sessionInfo = 'Nessuna partita attiva'
+      if (state.phase === 'play') {
+        const roundNum = state.index + 1
+        const totalRounds = game.totalSongs()
+        sessionInfo = 'Partita in corso: Round ' + roundNum + '/' + totalRounds + ' · ' + state.score + ' pt'
+      } else if (state.phase === 'results') {
+        sessionInfo = 'Partita completata · Punteggio: ' + state.score + ' pt'
+      }
+
+      const root = document.createElement('div')
+      root.className = 'modal-root'
+      root.setAttribute('role', 'dialog')
+      root.setAttribute('aria-modal', 'true')
+
+      root.innerHTML =
+        '<div class="modal-backdrop" data-act="cancel"></div>' +
+        '<div class="modal-card modal-card-data">' +
+        '<div class="modal-icon">' +
+        ICO.disk +
+        '</div>' +
+        '<h2>Salvataggi e Dati</h2>' +
+        '<p>Esporta i tuoi progressi o importa una partita salvata per riprenderla.</p>' +
+        '<div class="data-info-box">' +
+        '<div class="data-info-row"><span>Brani fatti nel catalogo</span><strong>' +
+        playedCount +
+        ' / ' +
+        totalCatalog +
+        '</strong></div>' +
+        '<div class="data-info-row"><span>Stato sessione</span><strong>' +
+        escapeHtml(sessionInfo) +
+        '</strong></div>' +
+        '</div>' +
+        '<div class="modal-data-actions">' +
+        '<button type="button" class="btn btn-secondary btn-data-act" id="export-btn">' +
+        ICO.download +
+        '<span>Esporta Salvataggio (.json)</span>' +
+        '</button>' +
+        '<button type="button" class="btn btn-primary btn-data-act" id="import-btn">' +
+        ICO.upload +
+        '<span>Importa Salvataggio (.json)</span>' +
+        '</button>' +
+        '<input type="file" id="import-file-input" accept=".json,application/json" style="display:none" />' +
+        '</div>' +
+        '<p id="data-status-msg" class="data-status-msg" hidden></p>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="cancel">Chiudi</button>' +
+        '</div>' +
+        '</div>'
+
+      const statusMsg = root.querySelector('#data-status-msg')
+      const importInput = root.querySelector('#import-file-input')
+      const exportBtn = root.querySelector('#export-btn')
+      const importBtn = root.querySelector('#import-btn')
+
+      const close = () => {
+        document.removeEventListener('keydown', onKey)
+        root.remove()
+        resolve()
+      }
+
+      const onKey = (e) => {
+        if (e.key === 'Escape') close()
+      }
+
+      root.addEventListener('click', (e) => {
+        const act = e.target.closest('[data-act="cancel"]')
+        if (act) close()
+      })
+
+      exportBtn.addEventListener('click', () => {
+        try {
+          const played = readPlayedFromDisk()
+          const session = lsGetJSON(SESSION_KEY, null)
+          const payload = {
+            appName: 'Sguessr',
+            version: 3,
+            exportedAt: new Date().toISOString(),
+            played: played,
+            session: session,
+            introSeen: hasSeenIntro(),
+          }
+          const str = JSON.stringify(payload, null, 2)
+          const blob = new Blob([str], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const d = new Date().toISOString().slice(0, 10)
+          a.href = url
+          a.download = 'sguessr-salvataggio-' + d + '.json'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+
+          if (statusMsg) {
+            statusMsg.hidden = false
+            statusMsg.className = 'data-status-msg success'
+            statusMsg.textContent = 'Salvataggio scaricato con successo!'
+          }
+        } catch (_) {
+          if (statusMsg) {
+            statusMsg.hidden = false
+            statusMsg.className = 'data-status-msg error'
+            statusMsg.textContent = 'Errore durante l\'esportazione del file.'
+          }
+        }
+      })
+
+      importBtn.addEventListener('click', () => {
+        if (importInput) importInput.click()
+      })
+
+      if (importInput) {
+        importInput.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0]
+          if (!file) return
+          if (statusMsg) {
+            statusMsg.hidden = false
+            statusMsg.className = 'data-status-msg info'
+            statusMsg.textContent = 'Caricamento salvataggio...'
+          }
+          try {
+            const text = await file.text()
+            let data = null
+            try {
+              data = JSON.parse(text)
+            } catch (_) {
+              throw new Error('Il file selezionato non è un JSON valido.')
+            }
+
+            if (!data || typeof data !== 'object') {
+              throw new Error('Contenuto del file non valido.')
+            }
+
+            let playedData = null
+            if (data.played && (Array.isArray(data.played.ids) || Array.isArray(data.played.keys))) {
+              playedData = data.played
+            } else if (Array.isArray(data.ids)) {
+              playedData = { ids: data.ids, keys: data.keys || [] }
+            } else if (data.songguesser_played_v3) {
+              playedData = data.songguesser_played_v3
+            }
+
+            let sessionData = data.session || data.songguesser_session_v1 || null
+
+            if (!playedData && !sessionData) {
+              throw new Error('Il file non contiene un salvataggio Sguessr valido.')
+            }
+
+            if (playedData) {
+              playedMem = {
+                ids: uniqueStrings([].concat(playedData.ids || [])),
+                keys: uniqueStrings([].concat(playedData.keys || [])),
+              }
+              writePlayedToDisk(playedMem)
+            }
+
+            if (sessionData) {
+              lsSetJSON(SESSION_KEY, sessionData)
+            }
+
+            if (data.introSeen) {
+              markIntroSeen()
+            }
+
+            initPlayedStore()
+            game.player.stop()
+
+            if (statusMsg) {
+              statusMsg.className = 'data-status-msg success'
+              statusMsg.textContent = 'Partita importata! Ripristino in corso...'
+            }
+
+            setTimeout(async () => {
+              close()
+              await game.start()
+            }, 600)
+          } catch (err) {
+            if (statusMsg) {
+              statusMsg.hidden = false
+              statusMsg.className = 'data-status-msg error'
+              statusMsg.textContent = err.message || 'Errore durante l\'importazione.'
+            }
+          }
+        })
+      }
+
+      document.addEventListener('keydown', onKey)
+      document.body.appendChild(root)
+    })
+  }
+
   const LOGO_HTML =
     '<div class="logo-mark"><img src="pwa-192.png" alt="Sguessr" width="96" height="96" decoding="async" /></div>'
 
@@ -1200,6 +1417,20 @@
     const screen = document.createElement('div')
     screen.className = 'screen home'
     screen.innerHTML =
+      '<header class="topbar topbar-home">' +
+      '<div style="flex:1"></div>' +
+      '<div class="topbar-right">' +
+      '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
+      (played > 0
+        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti (salvati sul dispositivo)">' +
+          played +
+          ' fatte</div>'
+        : '<div class="round-pill catalog-pill" title="Catalogo canzoni">' +
+          SONGS.length +
+          ' brani</div>') +
+      '</button>' +
+      '</div>' +
+      '</header>' +
       '<div class="home-content">' +
       LOGO_HTML +
       '<h1 class="brand-title">Sguessr</h1>' +
@@ -1224,6 +1455,13 @@
       btn.textContent = 'Ci siamo...'
       await game.start()
     })
+
+    const dataBtn = screen.querySelector('#data-manage-btn')
+    if (dataBtn) {
+      dataBtn.addEventListener('click', () => {
+        showDataModal()
+      })
+    }
     return screen
   }
 
@@ -1289,6 +1527,7 @@
       state.score +
       '</span></button>' +
       '<div class="topbar-right">' +
+      '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
       '<div class="round-pill" title="Round in questa partita">' +
       round +
       ' / ' +
@@ -1299,6 +1538,7 @@
           catalogDone +
           ' fatte</div>'
         : '') +
+      '</button>' +
       '</div>' +
       '</header>' +
       '<div class="stage">' +
@@ -1381,6 +1621,7 @@
     const nextBtn = screen.querySelector('#next-btn')
     const guessBtn = screen.querySelector('#guess-btn')
     const scoreBtn = screen.querySelector('#score-btn')
+    const dataBtn = screen.querySelector('#data-manage-btn')
     const input = screen.querySelector('#guess-input')
     const suggestions = screen.querySelector('#suggestions')
     const vinyl = screen.querySelector('#vinyl')
@@ -1390,6 +1631,12 @@
     if (scoreBtn) {
       scoreBtn.addEventListener('click', () => {
         confirmRestart()
+      })
+    }
+
+    if (dataBtn) {
+      dataBtn.addEventListener('click', () => {
+        showDataModal()
       })
     }
 
@@ -1560,6 +1807,7 @@
     const total = state.rounds.length
     const maxScore = total * 6
     const progress = catalogProgressLabel()
+    const played = getPlayedCount()
 
     const rows = state.rounds
       .map((r) => {
@@ -1586,6 +1834,18 @@
       .join('')
 
     screen.innerHTML =
+      '<header class="topbar topbar-results">' +
+      '<div style="flex:1"></div>' +
+      '<div class="topbar-right">' +
+      '<button type="button" class="round-pill-btn" id="data-manage-btn" title="Esporta o importa salvataggio partita">' +
+      (played > 0
+        ? '<div class="round-pill catalog-pill" title="Brani gi\u00e0 fatti">' +
+          played +
+          ' fatte</div>'
+        : '') +
+      '</button>' +
+      '</div>' +
+      '</header>' +
       '<div class="results-content">' +
       LOGO_HTML +
       '<h1 class="brand-title">Che partita!</h1>' +
@@ -1612,6 +1872,13 @@
       clearSession()
       await game.start({ fresh: true })
     })
+
+    const dataBtn = screen.querySelector('#data-manage-btn')
+    if (dataBtn) {
+      dataBtn.addEventListener('click', () => {
+        showDataModal()
+      })
+    }
     return screen
   }
 
