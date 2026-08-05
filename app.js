@@ -1512,7 +1512,7 @@
           escapeHtml(state.preview.artworkUrl) +
           '" alt="" class="art' +
           (revealed ? '' : ' blur-art') +
-          '" />'
+          '" draggable="false" ondragstart="return false;" oncontextmenu="return false;" />'
         : '<div class="art placeholder">' + ICO.note + '</div>'
 
     const inc = nextIncrement(step)
