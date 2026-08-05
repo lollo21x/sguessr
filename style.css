@@ -555,6 +555,12 @@ h1 {
   background: var(--bg-2);
   border: 2px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 .art {
@@ -562,11 +568,26 @@ h1 {
   height: 100%;
   object-fit: cover;
   display: block;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  pointer-events: none;
 }
 
 .blur-art {
   filter: blur(12px) brightness(0.55) saturate(1.4);
   transform: scale(1.25);
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .art.placeholder {
