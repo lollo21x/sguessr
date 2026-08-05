@@ -470,7 +470,8 @@ h1 {
   align-items: center;
   margin-bottom: 0.4rem;
   z-index: 1;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  flex-wrap: wrap;
   /* extra breathing room under notch/status bar on PWA */
   padding-top: 0.15rem;
 }
@@ -485,6 +486,22 @@ h1 {
   font-family: var(--font-display);
   color: #d8d0ff;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.round-pill.catalog-pill {
+  border-color: rgba(255, 92, 138, 0.45);
+  color: #ffc0d0;
+  font-size: 0.78rem;
+  padding: 0.38rem 0.75rem;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .stage {
