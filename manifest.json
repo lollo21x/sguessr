@@ -1,12 +1,12 @@
 {
   "name": "Song Guesser",
   "short_name": "SongGuesser",
-  "description": "Indovina la canzone ascoltando pezzi sempre piu lunghi",
+  "description": "Ascolta, indovina, scala la classifica. Il quiz musicale a colpi di secondi.",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#070b12",
-  "theme_color": "#007fea",
+  "background_color": "#1a1230",
+  "theme_color": "#1a1230",
   "icons": [
     {
       "src": "pwa-192.png",
