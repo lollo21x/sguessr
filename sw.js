@@ -1,5 +1,5 @@
 /* Service worker PWA — network-first per JS/CSS/HTML così progresso e catalogo restano aggiornati */
-const CACHE = 'songguesser-v2.3'
+const CACHE = 'songguesser-v2.4'
 const ASSETS = [
   './',
   './index.html',
